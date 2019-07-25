@@ -50,19 +50,39 @@ How do we test whether a decomposition is dependency-preserving?
 
 Consider relation R with FDs F, where X -> Y violates BCNF. Then decompose R into (R - Y) and XY (guaranteed to be lossless). Several dependencies may violate BCNF. The order in which we decompose could lead to very different sets of relations.
 
-*Unfortunately, there is not yet a dependency-preserving composition into BCNF!*
+*Unfortunately, there may not be a dependency-preserving composition into BCNF!* Example: 
 
-56:30
+* CSZ, CS -> Z, Z -> C
+  * Try splitting it into SZ and ZC
+* This cannot be decomposed while preserving the first FD.
+* This typically occurs when decomposition splits apart 1-way transitive functional dependencies; in this case, CS -> C, as in the example above.
 
+One way to solve this is to have some of the dependencies be stored redundantly in their own tables, avoiding the join (code is needed to enforce the dependency, instead of structure). This may not lead to all tables being in BCNF, unfortunately. In this way, if you have an update X that needs to be put into the two tables X and Y (due to redundancy), but the only purpose of X is to check the dependencies, then you only update Y if the X update succeeds.
 
+## Third Normal Form
 
+This is the solution to the fact that BCNF cannot necessarily be decomposed while preserving dependency.
 
+A relation R with FD's F is in 3NF if, for all X -> A in F+:
 
+* A is in X (trivial) (also a rule of BCNF)
+* X is a superkey of R, or  (also a rule of BCNF)
+* A is *part* of some candidate key (*not a superkey*) for R. Sometimes stated as "A is *prime*"
 
+If R is in BCNF, then it is in 3NF. R can always be decomposed (lossless and preserving dependencies) into a collection of 3NF relations
 
+If R is in 3NF, some redundancy is possible, but at least dependencies are preserved.
 
+### Decomposing into 3NF
 
+* Follow the BCNF algorithm
+* To ensure dependency preservation, if X -> Y is not preserved, add relation XY (but this might violate 3NF!). So do this carefully.
+* Refinement - to avoid this, don't use the given set of FDs F. Use a *minimal cover* of F to do the decomposition algorithm.
+  * Minimal cover - a minimal cover G of F is an FD such that G+ = F+, but G is the smallest set of FD's possible.
 
+If you decompose into 3NF, or into BCNF (non-dependency-preserving), you will have to handle the redundancy or dependency preservation in either CHECK constraints or Application Logic. This is tough.
+
+Functional dependencies appear in a lot of data applications, in a variety of forms. Look out for them!
 
 
 
