@@ -41,7 +41,7 @@ Given a closed set of operators, we need
     * Selectivity (estimating how much pushing down the select operator reducing the total tuple count)
 * Search algorithm - how to sift through the plan space to find the cheapest option.
 
-### System R (Selinger) Style Optimization
+## System R (Selinger) Style Optimization
 
 Works well for up to 10-15 joins. It approaches the ingredients as follows:
 
@@ -55,6 +55,8 @@ Works well for up to 10-15 joins. It approaches the ingredients as follows:
   * Consider combinination of CPU and I/O costs
 * Search Algorithm - *Dynamic Programming*
   * Memoize the highly expensive subtrees when generating and deciding on candidate plans.
+
+### Examine the Plane Space
 
 #### Query Blocks: the Unit of Optimization
 
@@ -92,7 +94,75 @@ The following operations maintain equivalency
 * Cartesian Product
   * Associate - R x (S x T) = (R x S) x T
   * Commute - R x S = S x R
-  * Therefore we can do joins in any order.
+  * Therefore we can do almost do joins in any order, since joins are just cross products with selects built in.
     * R x (S nat.join T) = (R x S) nat.join T
+      * This may not be a good thing. (R x S) may be way huger than (S nat.join T), which leads to much more expensive IO cost.
+    * But be careful!
+      * ( R nat.join S ) nat.join T != (R nat.join T) nat.join S, since R and T may have no columns in common. So instead we have ( R nat.join S ) nat.join T == *select*((R x T) nat.join S), which is not what we want -- the cross product is way bigger and more expensive. The result is the same, but we had to move the *select* up and out.
+* Eager projection 
+  * project<sub>i</sub>(select<sub>a=4</sub>) = project<sub>i</sub>(select<sub>a=4</sub>(project<sub>i,a</sub>))
+  * Selection on a cross-product is equivalent to a join
+  * A selection on attributes of R commutes with (R x S)
+  * But overall, these are situational. You have to make sure the information you want is always available when you make these situational equivalencies.
 
-45:00
+#### Queries Over Multiple Relations
+
+The System R heuristic -- only consider left-deep join trees. Why?
+
+* Restrict the search space.
+* Left-deep trees allow the *generation* of all *fully pipelined plans*
+  * That is, intermediate results do not have to be written to temporary files -- streaming can be done very easily, reducing the disk footprint. Not all left-deep trees are fully pipelined, however.
+
+### Examine Cost Estimation
+
+Estimating the total cost of a plan 
+
+* Estimate cost of each operation
+  * Depends on size of inputs
+* Estimate *size of result*, since it determines size of inputs to downstream operations.
+  * Estimate based the input relations.
+  * For selections and joins, you will assume that the predicates are independent, as a heuristic.
+* In System R, the cost is aggregated into a single number consisting of #IO's + (CpuTimeFactor * #tuples). This is sloppy (what is CpuTimeFactor? The assumptions are not that accurate), but it works in most cases as a heuristic for ordering the plans. *You avoid the worst plans, and pick a pretty good plan (not necessarily the best).
+
+#### Using the Catalog and Statistics
+
+In the first System R, catalogs typically stored:
+
+* number of tuples in a table.
+* number of disk pages in a table
+* min/max value of each value in a column (High(col), Low(col))
+* number of distinct values in a column (NKeys(col))
+* height of each index on the table
+* number of disk pages in an index
+
+Catalogs are only updated periodically (too expensive to do on-the-fly). The approximation is usually okay. Modern systems keep even more data.
+
+#### Size Estimation
+
+Size estimation can be done with a number of heuristics:
+
+* Max output cardinality = cardinality of cross-product of the inputs
+* Selectivity - we are throwing away tuples with each selection. How many are being thrown away?
+  * We estimate the selectivity of each term in the Select clause (how much does "age > 5" reduce the output?)
+  * |estimated output| / |input|
+  * Multiply the selectivities of all terms together to get the final "Reduction Factor"
+* Result cardinality = (max # tuples) * (composite Reduction factor).
+
+Examples Reduction Factor calculations:
+
+* col = value (given number of distinct values NKeys(col) in the column)
+  * RF ~ 1 / NKeys(col) (assumes uniform distribution)
+* col1 = col2         (handy for joins as well)
+  * RF = 1 / Max( NKeys(col1), NKeys(col2) )
+  * This factor is based on probability of finding two records where the two column values match.
+* col > value
+  * RF = (High(col) - value) / (High(col) - Low(col) + 1)
+  * This factor is another statistical calculation: (range size of query) / (range size of table). Huge assumptions are made here about uniformity.
+* According to SystemR designer's advice, choose the RF as (1/10) if the relevant Catalog statistics aren't available. This value is arbitrary. You may want to choose one for each operator that doesn't have the statistics.
+
+
+
+
+
+
+
