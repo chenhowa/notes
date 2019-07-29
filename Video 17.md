@@ -44,7 +44,28 @@ To handle Boolean Logic, OR is the union of two docID lists. AND is the intersec
 
 OR NOT and NOT are pretty expensive, and are typically not allowed (or are ignored) in IR engines.
 
-20:00
+Boolean Search in SQL is very simple. It's just a bunch of JOINs on the inverted file table.
+
+#### What if you want phrases?
+
+Augment the Inverted file to have columns (term, docID, position in doc). Now terms can be stored multiple times per document. Make a new index on term, but the lists are now (docID, position), sorted by "position". Then to get the phrase "Happy" AND "Days", find docs with "Happy" and "Days" where the positions of the two are 1 off, and merge the lists. Observe that sorting by "position" is important for this, for obvious reasons.
+
+A similar thing works for `term1` NEAR `term2`, where you try to figure out if *position diff* < *k*
+
+Another thing you might want to do is split up a term into "Trigrams" (substrings of length 3). So "Database" becomes [ "dat", "ata", "tab", ... and so on ]. This allows for pattern search (looking for "data" means finding "dat" and "ata" ). It also lets you do approximate matches - for example, "databake" matches on quite a few trigrams, so it's close. Without trigrams, it would be hard to do approximate matches, since the data you'd have to scan through (even just a word) would be hard to find, since you'd have to scan the entire inverted table for terms that were close to the search term. Trigrams seem to work much better in English than 4-grams and 5-grams
+
+#### What if you want the document content?
+
+Recall that we have the tables InvertedFile(term, position, docID), and Files(docID, URL, content). If we built B+Tree indexes on InvertedFile.term and Files.docID, we can do a join between the list of docIDs and Files.docID, to generate (docID, content) pairs. Also, this join can be done lazily, since search results are viewed just 1 page at a time. This improves performance still further. Note that since search results typically return such large result sets, intermediate results are *never materialized* (put on disk). So the output is done entirely as a lazy stream.
+
+But how can we sort by ranking without generating all the output?
+
+35:00
+
+
+
+### Calculating Rank of Search Results
+
 
 
 
