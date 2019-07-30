@@ -60,11 +60,59 @@ Recall that we have the tables InvertedFile(term, position, docID), and Files(do
 
 But how can we sort by ranking without generating all the output?
 
-35:00
+#### Updates and Text Search
 
+Text Search engines are designed to be query-mostly. Deletes and mofiications are rare. So updates are postponed
 
+* Multiple indexes may be used -- 1 for old data, 1 for 2-day old data, 1 for 1-day old data, 1 for deleted data 2 days ago, and so on. Thus, the updated data is not necessarily immediately merged. The results of searching the indexes can then be merged sometime later, in a batch (deletions are subtracted from the final result). It's just not worth the IO's to be keeping the tables all together and up-to-date. This method is called *log-structured merge indices*.
+* You can build other indicies on free machines, and then replace the existing indices with the newly constructed indicies.
+* Since deletes and modfications are rare, compression can be used to speed index lookups.
+
+#### Additional Tricks for Search Results
+
+* Ranking
+* Visualization of document clustering (related documents)
+* Compression
+* Dealing with misspellings, acronyms, and synonyms
+* How to write a good web crawler
+* Search engine optimization (don't be vulnerable to web spam)
+* Customization for individual users
+
+We only discuss ranking in more depth
+
+IR lingo:
+
+* Corpus - collection of documents
+* Term - searchable unit
+* index: mechanism to map terms to documents
+* Inverted File = Postings File - file containing terms and associated postings list
+* Postings list - list of pointers to documents
 
 ### Calculating Rank of Search Results
+
+Classical IR Ranking was done with the vector space model. So we treat each document as a vector, where every unit vector is a term. Hence, every document is an array of possible terms. *Then a query is itself just a short document*, and you can rank all documents with a distance function to the query document
+
+What is the right distance function? There are some problems:
+
+* Two long docs will be more similar to each other (far from the origin) than to short docs (near origin).
+  * Solution - normalize each vector to be a unit vector. Now every document is a point on the unit sphere. Now the cosine of the angle between two vectors serves as a good ranking function
+* Not all dimensions in a document are equally important
+  * We want to favor repeated terms in a document
+  * We want to favor unusual words in the document.
+  * We do this with (Term Frequency) x (Inverse Document Frequency) = TD x IDF
+    * docTermRank = occurences of t in d x (log (total # of docs / # docs with this term))
+    * We let docTerm Rank be the component of the term in the overall vector
+
+If we want to find the ranking quickly, we need to make additional indexes. We have a new table TermInfo (term, numDocs), and we update the Inverted File schema to be InvertedFile(term, docID, DocTermRank float), which caches the ranking, which will be updated occasionally
+
+####  Assigning Ranking
+
+* Only rank results that match the search query (heuristic).
+  * It's possible that a document exists that has the highest rank that doesn't match the search query
+  * We could do better by considering results that *mostly* match the search query, by dropping part of the query
+* For each docID that matches, compute cosine distance to query, and rank accordingly. But sorting is expensive! We don't want to have to sort 10 million results out-of-core.
+
+How do we make the sort go fast? We parallelize them, as will be discussed in the next lecture.
 
 
 
