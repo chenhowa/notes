@@ -65,7 +65,12 @@ To enumerate all the Left-Deep Plans
 * Pass 2 - find best way to join result of the (i-1) relation plan to the i<sub>th</sub> relation.
 * For each subset of relations, we keep only the cheapest plan overall, and the cheapest plan for each *interesting order* of the tuples. Interesting order means the result has been sorted by "ORDER BY" attributes, "GROUP BY" attributes, or JOIN attributes that will be required for a later join.
 
-The dynamic programming table will have 4 columns - the subset of tables being considered for the row, the interesting order columns (if any for this plan), the best plan, and the cost of this plan. We keep track of interesting order columns so that we can use it later -- it might be cheaper to sort earlier, rather than sort later, for a later operation
+The dynamic programming table will have 4 columns -
+
+* the subset of tables being considered for the row, 
+* the interesting order columns (if any for this plan), 
+* the best plan, 
+* and the cost of this plan. We keep track of interesting order columns so that we can use it later -- it might be cheaper to sort earlier, rather than sort later, for a later operation
 
 Now, when do we match an (i-1) way plan with the i<sub>th</sub> relation? We do it if there is a JOIN condition (possibly in a WHERE clause), or if there is no join condition (but now we have to do a cartesian product, which sucks). We do cartesian products as late as possible
 
