@@ -74,4 +74,19 @@ A popular medium
 
 So how do you build good data visualizations? How do you *specify* a data visualization?
 
-51:30
+A visualization is a mapping from data to graphical objects. But a mapping is essentially a query -- it's declarative, just like DBMS's are. Visualization languages used to be imperative, but now they are declarative -- concise, elegant, easy to analyze, and reusable
+
+### D3.js
+
+Data-Driven Documents. Since web standards define graphical objects in the browser (HTML, SVG), we can map from data to representations in those standards. Data is the input. Webpages are the output.
+
+* Select objects on a web page. Select data.
+* Mapping is a Join of data with page elements
+* Use full outer join to gradually transform data into a page without dropping any data or nodes in the join
+
+
+
+
+
+
+
