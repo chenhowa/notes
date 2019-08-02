@@ -17,13 +17,57 @@ Each Xact starts at the Database. To get S or IS lock on a node, you must have a
 
 ### Lock Compatibility Matrix
 
-At each granularity level, what locks are compatible with each other among multiple Xacts (IS, IX, SIX, S, X)? See 15:30
+At each granularity level, what locks are compatible with each other among multiple Xacts (IS, IX, SIX, S, X)? See 15:30.
 
-20:00
+At the Table level, IS and IS are compatible. IX IX are compatible. IX and S are not compatible. X and IS are not compatible. S and IS are compatible. IX and X are not compatible. SIX and IX are compatible, etc.
 
+*Every commercial database uses this multi-level granularity for locks!*
 
+## Concurrency Control for Indexes
 
+Using 2PL on B+tree pages is not great for modifying them, because splits can bubble up to the root, so a lock on the root locks the whole B+tree.
 
+Instead, we'll use short locks (latches). The idea is that the upper levels of B+ trees just direct traffic correctly, so they don't need to be handled with serializable concurrency.
+
+Also, note that even if the B+tree-structure is correct, it's *incomplete* -- and you want to be able to lock stuff that doesn't exist yet.
+
+### Latches
+
+There are many data structures inside the DBMS where you need mutual exclusion locks
+
+* Pin count on buffer pages
+* Wait queue in a lock table
+* B+ tree pages
+
+A latch allow this mutually exclusive locking, while it will "unlatch" almost immediately, and very quickly. There are S and X latches for reads and writes. Latches are typically placed in memory, right next to the data they will be latching, so cache locality is great.
+
+#### Basic ideas in latching
+
+* There are several:
+  * Latch path
+    * Base case - get a latch on the root
+    * Induction - get a latch on node N, and then get a latch on the appropriate child of N
+    * Problems
+      * We're still locking the entire table.
+      * Around 4 IO's - to read root, child, grandchild, great-grandchild, and latch. Takes forever. We want to avoid holding a latch when doing an IO
+    * Benefits
+      * The time of holding the latch is the length of a lookup, not a transaction.
+  * Latch Coupling (crabbing)
+    * Base - get a latch on root
+    * Induction - get latch on child of node N, and release latch on N
+    * Benefits
+      * Releasing latches is great.
+    * Problems
+      * When is it safe to release a latch on insert? If you get latch on child C, and release latch on node N, and some other insert causes node N to split while a latch on C is held, we may have a huge problem
+      * We still hold the parent latch while trying to get the latch of the child.
+
+### B-link Tree
+
+This is a concurrent B+ tree. Readers set no latches at all. Readers will still set locks on tuples and pages, but no latches.
+
+The basic idea is that while going down the B+tree, the node is split. So just detect the twin and go to it if you need to.
+
+39:00
 
 
 
