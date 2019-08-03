@@ -65,9 +65,44 @@ A latch allow this mutually exclusive locking, while it will "unlatch" almost im
 
 This is a concurrent B+ tree. Readers set no latches at all. Readers will still set locks on tuples and pages, but no latches.
 
-The basic idea is that while going down the B+tree, the node is split. So just detect the twin and go to it if you need to.
+The basic idea is that while going down the B+tree, the node is split. So just detect the twin and go to it if you need to. To do this, each ndoe now stores a "high" key, that detects whether a reader needs to go right, by having a pointer to the node's right sibling.
 
-39:00
+Latch coupling is rare under this scheme -- it is unlikely that a latch will be held while waiting for IO.
+
+Reading Algorithm is around or a little after 42:00
+
+
+Insertion Algorithm is around or a little after 51:30
+
+To move right on a leaf during insertion, you do need to latch the current leaf, grab the right pointer, latch the right leaf, unlatch the current leaf, and then move right
+
+To delete, latch the leaf, delete from it, and unlatch. Allow leaves to be under-full
+
+### Phantoms
+
+B-link protects us during concurrency on structure of the B-link tree changing. But how do we protect from values changing during a transaction? Serializability assumes that the database is constant, but what if you do a range-scan twice for values between 5 and 8, and the first range-scan's results are different from the second range scan's results? How do we lock a logical range of tuples, without locking millions of individual tuples?
+
+We do *next-key locking*
+
+* On read(x)
+  * use index to find x
+  * if x is not found, S-lock the next-higher item x'
+* On insert/update(x)
+  * Use index to find x
+  * if x is not found, X-lock the next-higher item x'
+* Combining the two above essentially creates a range lock
+  * For example, an X-lock for insert could run into an earlier S-lock of the phantom value
+  * The range lock is from [x, x'], which may be a HUGE range
+* If you have no index, you can't do next-key locking
+  * During sequential scan, a reader has to do *all the S-locks*, including locking the table, so no phantom values are possible
+
+Most commerical databases don't enforce ACID transactions OOB. They enforce a "Weak Isolation" model instead by default. That's crazy.
+
+
+
+
+
+
 
 
 
