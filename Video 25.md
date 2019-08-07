@@ -74,14 +74,66 @@ Traditionally:
 * Multi master
   * Writes could happen at any node that has a replica of the data item, and then Replication occurs.
   * Allows lower latency and load balancing.
-  * Fast, but hard to understand soem things
+  * Fast, but hard to understand some things
     * What if the item is updated in two places? Which update wins, or are they additive somehow?
     * 2PL/2PC cannot be used effectively here?
 
 ### Compromise: Quorum Writes
 
-55:00
+Suppose you have N nodes replicating each item. Send each write to a subset W of the N nodes, and timestamp the write. Send each read to a subset R of the N nodes and timestamp the read. The reader will use the timestamps to choose the result:
 
+* Ensuring that |W| + |R| >= N is a "strict quorum", which means that a reader will definitely see the latest write from one of the nodes. (pigeonhole principle)
+  * If |W| = |R|, |W| > N/2, then we have a majority quorum
+  * If |W| = N, and |R| = 1, then we have a writer broadcast.
+* Advantages - not at mercy of a slow master, and it's easy to recover from a failed node.
+* Transactional semantics still require 2PC.
+  * Is 2PC still too expensive, to hold a unanimous vote? The latency depends on your network, and many other factors in hardware (switches, magnetic disk vs flash) and software (GC [esp. Java], event handlers being written to be very very fast)
+  * Transactions across the world are still very slow! It may be better, performance wise, to just live with somewhat-inconsistent data.
+
+The danger of using transactions is that misusing them slows the system down a TON, building up queues of pending transactions. This really only happens for geo-replicated systems at massive scale, however.
+
+## NoSQL
+
+Born from Amazon's product *Dynamo*
+
+* Have a simple key/value data model.
+* Replicate data at least 3 copies
+* Multi-master - write anywhere, with a timestamp
+* Update is acknowledged by a single node, with no explicit replication (replication happens sometime in the background)
+* Update is "gossipped" lazily among the replicas in the background ("anti-entropy", "hinted-handoff").
+* Reads can consult 1 or more replicas 
+  * Quorums can be used to achieve linearizability.
+
+### NoSQL ambiguities
+
+* Most NoSQL systems don't bother achieving linearizability
+* Per object, you may not read the latest version, and writers can conflict, which requires conflict resolution and merge rules
+  * Last/First writer wins -- but what clock do you use?
+  * Merge rules (e.g. Increment, Max)
+* Across objects, there are no guarantees, so there are no transactional semantics.
+
+### Eventual consistency
+
+If no new updates are made to the object, eventually all accesses will return the last updated value, thanks to the gossipping protocol. In practice, this has no clear meaning, since there are typically always new updates.
+
+This leads to some problems. There are two kinds of properties people want in distributed systems, that Amazon's NoSQL does not guarantee:
+
+* Safety - nothing bad ever happens - Nope! The DB is never really in a correct state.
+* Liveness - a good thing eventually happens - "eventual consistency" never really happens though.
+
+To deal with EC, you either don't worry about it (deal with the real-world consequences in the real world, by say, apologizing), you handle the inconsistencies within the application code, or you use some theories ("monotonicity")
+
+### Inconsistency
+
+How often does inconsistency occur?
+
+* What are the odds of an incorrect read? That determines the cost.
+
+To deal with this issue, the basic idea from Amazon is to not mutate values in the key-value store, but to accumulate logs at each node, and then at check-out time, we union-up all the logs to get the correct result, and 2-phase commit is used to write the results to the key-value stores at the nodes.
+
+## Data and Lessons to Live By
+
+NoSQL and Relational DBMS are 75% the same, and 25% tradeoffs.
 
 
 
