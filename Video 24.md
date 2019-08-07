@@ -76,7 +76,7 @@ Note that to perform UNDO, we need a lock on the data, which is fine because we 
 With the log, we essentially have the history of the entire DB. So periodically, the DBMS creates a checkpoint to minimize recovery time after a crash. To create a checkpoint without copying the entire DB:
 
 * Write a begin_checkpoint log
-* Write an end_checkpoint log that contains the current Xact table and Dirty Page Table. This is a fuzzy checkpoint.
+* Write an end_checkpoint log that contains the current Xact table and Dirty Page Table and *flush to the log*. This is a fuzzy checkpoint.
   * The checkpoint is only acccurate as of the time of the begin_checkpoint record, since other Xacts continue to run during checkpointing.
   * The effectiveness of the checkpoint is limited to the oldest unwritten change to a dirty page.
   * Store the LSN of the most recent checkpoint record, in some sort of conventional place.
@@ -89,10 +89,43 @@ With the log, we essentially have the history of the entire DB. So periodically,
 * REDO all actions.
 * UNDO all failed Xacts.
 
-42:00
+As you go through the log in the checkpoints, we update the the corresponding Xact in the Xact Table with its lastLSN and status, based on the log. Similarly, we can reconstruct the Dirty Page Table - each page's recLSN is the first update to the page found within the checkpoint -- Does that actually make sense?
 
+The oldest thing that needs to be redone, is the oldest thing that never made it to the DB, even though it should've. This is the oldest recLSN in the reconstructed Dirty Page Table. We will redo everything starting from, and after, that particular log, to get the DB to the state it was in during the crash. Then we can UNDO all the Xacts that failed (were not committed during the crash) thanks to the crash.
 
+#### The Analysis Phase.
 
+* Re-establish state at checkpoint through the stored Xact table and Dirty page table. Then scan the log from that checkpoint --
+  * If we see a "end" record, remove that Xact from the Xact table, and MAYBE remove its pages from the Dirty Page table?? -- we have all the info we need to flush all the Xact's changes to disk when we REDO, and we don't need to worry about correctly undoing it.
+  * For all other logs - add the Xact to the Xact table if it was absent, and set lastLSN = LSN. If the log was a "commit" log, also change the Xact status. If it was an "update" log, if the page P was not in the Dirty Page table, add P to the Dirty Page table, and set its recLSN=LSN
 
+By the end of analysis, the Xact table says which Xacts were active during the according to the last log flush before the crash, and the DPT says which dirty pages *might not* have made it to the disk.
 
+*The important thing is to be able to undo all the failed Xacts, including partially committed Xacts that didn't manage to write an "end" record* The fully commited Xacts don't need to be touched.
+
+#### The REDO Phase
+
+Scan forward from the log record containing the smallest recLSN in the DPT. For each update log or CLR with a given LSN, REDO the action unless 
+
+- the affected page is not in the DPT - for some reason, according to analysis. How might this happen?
+- affected page is in the DPT, but has recLSN > LSN, which means this update is in the Database, thanks to the buffer manager flushing it before it got dirty again.
+- pageLSN (in DB) >= LSN, which requires IO, is another indication that the update did get put to disk.
+
+To REDO the action, reapply the logged action to the page in memory, and set pageLSN to the LSN. No logging, and these changes are not forced to the database
+
+#### The UNDO Phase
+
+We could undo each Xact still in the Xact table, and abort all of them. The problem is that this is slow, since you have to do random IO's for possibly many, many Xacts, in random order.
+
+To improve the performance, gather the lastLSN's of all the Xacts in the Xact table, and 
+
+* choose the largest LSN that needs to be undone and
+* If it is a CLR and undonextLSN == NULL, write an End record for this Xact.
+* If this LSN is a CLR and undonextLSN != NULL, then add undoNextLSN to the list of LSN's to undo.
+* Else it is an update -- undo it, write a CLR, and add the *prevLSN* to the list of LSNs to undo.
+* Repeat until the list of LSN's to undo is empty.
+
+The goal of this is to do the undos in just one sequential backwards pass of the log. Note the beauty of the CLR's -- it means that even if an UNDO is being interrupted, it can be finished later (even after a crash)
+
+This lecture was pretty terrible, in that it wasn't illustrated very well.
 
