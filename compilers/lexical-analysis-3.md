@@ -37,3 +37,12 @@ A language over an alphabet is some set of strings of characters drawn from the 
 Many formal languages also have a meaning function that maps the string to its meaning. For example, in regular expressions, a meaning function maps it to the set of all strings that the regular expression can represent.
 
 Meaning functions make clear what is syntax, and what is semantics. This is what allows us to change the syntax of a language while keeping the meaning of the overall program the same. Since meaning functions are not injective (1-1), it is possible to do optimizations -- to write a different, faster program that does the same thing. When it comes to lexical analyzers, this means that each lexeme corresponds to just one token class -- never two or more.
+
+### Lexical Specifications
+
+Regular expressions can be used to specify what lexemes are in the programming language.
+
+- keywords: Simple case specifies the exact set of keywords, as a union of all the individual keywords
+- integers: specify a non-empty string of digits. digit+
+- identifiers: letter (letter + digit)*
+- whitespace: nonempty sequence of whitespace and non-printables
