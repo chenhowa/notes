@@ -60,3 +60,38 @@ Regular Expressions --> NFA --> DFA --> Table-driven implementation of the DFA
 
 
 ## Converting an NFA to a DFA
+
+epsilon-closure of a state is the set of states you can reach from the state by following 1 or more epsilon transitions
+
+If a NFA has N states, then can be in at most N states at the same time, and therefore at most 2^N - 1 configurations exist.
+
+So if we have an NFA with set of states S, start state s, and accepting states F, and for each character _a_ and state X, _a_(X) is the set of states you can reach using the transition _a_ from X, and we also have _e_(X), which is the epsilon closure of X.
+
+Then the DFA is 
+
+- States: the set of all subsets of S.
+- Start State: _e(s)
+- Accepting states: all states where at least one member is in F (from the NFA).
+- Transition function: state X can go to Y on input _a_ if _e_(_a_(X)) is equal to state Y, which guarantees that this is a function.
+
+This DFA records the set of states the NFA could go into on an input.
+
+## Implementing an NFA and DFA in code
+
+Implementing a DFA can be done with a 2D table.
+
+- One dimension is the states (subsets of the NFA)
+- One dimension is the input symbol.
+- For each transition _a_ on state S, the next state is stored at Table[S][_a_]
+- While there is still input, and while Table[S][_a_] is not an error, we continue using the input to update the current state. If Table [S][_a_] is an error, we reject. If we run out of input and we are not in an accepting state, we reject. Otherwise we accept.
+
+To avoid duplicate rows, we could instead do some indirection and have an Array, where each index represents a state. Each cell in the array points to a different array, where each index represents an input character, and each cell stores the next state. Thus, multiple states can use the same input transition array, which saves space.
+
+
+Implementing the NFA can be done with a 2D table as well. This table will be much smaller.
+
+- One dimension per state of the NFA.
+- One dimension per input AND epsilon.
+- Each cell of the array stores the set of states that can be reached from state X using the input _a_
+
+We track the set of states the NFA is currently in, so the processing loop is much more expensive than in the DFA, since you have to do things like follow the epsilon closures
