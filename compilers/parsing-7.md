@@ -37,7 +37,7 @@ So generally, the algorithm is:
 - If the leftmost thing is a non-terminal,
     - Get the next input token a,
     - Replace S with [S, a]
-- If the leftmost thing is a terminal
+- If the leftmost thing is a terminal (which might be "", in which case no input is consumed)
     - Get the next input token a
     - match a with the terminal, nad remove the terminal. If no match, then error.
 
@@ -66,4 +66,29 @@ You can build the First set of a nonterminal X by computing the First Sets from 
 
 The second part of constructing LL(1) paresing tables requires Follow Sets.
 
-The Follow Set of a non-terminal A __for a given production S__ is the set of all terminals t for which there exists a derivation that generates A t somewhere in the derivation, AND A -> ... -> "". This means that it is possible to get rid of A and immediately match a terminal from the Follow Set of t.
+The Follow Set of a non-terminal A __for a given production S__ is the set of all terminals t for which there exists a derivation that generates *A t* somewhere in the derivation. This means that it is if we can get rid of A, we can immediately match a terminal from the Follow Set of A.
+
+Observe that if X -> AB, then First(B) is a subset of Follow(A). And Follow(X) is a subset of Follow(B), since if there is a nonterminal that follows X then this derivation means that it could follow B as well. Finally, if B -> ... -> "", then Follow(X) is a subset of Follow(A), for the same reason. Finally, if S is the starting parse nonterminal, we say that the EOF symbol is in Follow(S)
+
+Algorithm to compute a follow set for a grammar:
+
+- $ is in Follow(S).
+- For each production A -> XYZ:
+    - First(Z) - { "" } is a subset of Follow(X).
+    - If "" is in the First(Z), then Follow(A) is a subset of Follow(X).
+    - Follow(A) is a subset of Follow(Z).
+
+### Building LL(1) Parsing Tables
+
+To build a parsing table T for a grammar,
+
+- For each production A -> B in G, where B represents some right-hand side of a production, including "":
+    - For each terminal t in First(B), then we add an entry in the table T[A, t] = B
+    - If "" is in First(B), then it is possible for A to disappear completely, so for each t in Follow(A), we can say T[A, t] = B. This means that the input t **uses** the production successfully.
+    - If "" is in First(B), and EOF is in Follow(A), then T[A, $] = B. This is just a special case of the previous rule.
+
+When you try to build a parsing table for a non-LL1 grammar, what happens? Basically, you will find that when you build the parsing table, a single space T[A, t] will have two entries that need to be assigned to it. Or you end up in a recursive loop.... If you can build a LL1 parsing table for a grammar, then it is an LL1 grammar.
+
+Grammars that are ambiguous, not left-factored, lef-recursive -- a non-exhaustive list of criteria that means a grammar is not LL(1). Most programming languages are not LL1! They can't capture all the constructs that make the languages great.
+
+So to summarize where we are. Recursive descent parsers are very general, but are hard to generate code for. LL(1) grammars are not general, but they are relatively easy to generate code for.
