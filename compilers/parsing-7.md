@@ -35,10 +35,10 @@ Once we have a left-factored grammar, we can generate a LL(1) parsing table. Wha
 So generally, the algorithm is:
 
 - If the leftmost thing is a non-terminal,
-    - Get the next input token a,
+    - If no current input token, get the next input token a,
     - Replace S with [S, a]
 - If the leftmost thing is a terminal (which might be "", in which case no input is consumed)
-    - Get the next input token a
+    - If no current input token, get the next input token a
     - match a with the terminal, and remove the terminal. If no match, then error.
 
 We use a stack to record the list of Non-terminals and unmatched terminals. The top of the stack is the leftmost pending terminal or non-terminal.
@@ -68,19 +68,21 @@ The second part of constructing LL(1) parsing tables requires Follow Sets.
 
 The Follow Set of a non-terminal A __for a given production S__ is the set of all terminals t for which there exists a derivation that generates *A t* somewhere in the derivation. This means that it is if we can get rid of A, we can immediately match a terminal from the Follow Set of A.
 
-Observe that if X -> AB, then
+Observe that if X -> ABC, then
 
 - First(B) is a subset of Follow(A). 
 - Follow(X) is a subset of Follow(B), since if there is a nonterminal that follows X then this derivation means that it could follow B as well.
 - if B -> ... -> "", then Follow(X) is a subset of Follow(A), for the same reason as the previous point.
+- if B -> ... -> "", then First(C) is a subset of Follow(A)
 - if S is the starting parse nonterminal, we say that the EOF symbol ($) is in Follow(S)
 
 Algorithm to compute a follow set for a grammar, where S is the singular starting parse nonterminal:
 
 - $ is in Follow(S).
-- For each production A -> XZ:
+- For each production A -> XZO:
     - First(Z) - { "" } is a subset of Follow(X).
     - If "" is in the First(Z), then Follow(A) is a subset of Follow(X).
+    - If "" is in the First(Z), then First(O) - { "" } is a subset of Follow(X).
     - Follow(A) is a subset of Follow(Z).
 
 ### Building LL(1) Parsing Tables
